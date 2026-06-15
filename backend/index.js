@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+require('./config/db'); // Asegura que la conexión a la base de datos se establezca al iniciar el servidor
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,7 @@ app.use(express.json()); // Permite recibir datos en formato JSON (crucial para 
 
 // --- CONEXIÓN DE RUTAS ---
 app.use('/api/auth', require('./routes/authRoutes'));
+
 
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
