@@ -1,12 +1,10 @@
 const bcrypt = require('bcryptjs');
+const db = require('../config/db'); // Conexión a MariaDB
 
-// Simulación de la base de datos en memoria (temporal)
-const usuariosMock = [];
-
+// === REGISTRO DE USUARIO ===
 const registrarUsuario = async (req, res) => {
     const { nombre, correo, contraseña } = req.body;
 
-    // 1. Validación de QA: Campos vacíos
     if (!nombre || !correo || !contraseña) {
         return res.status(400).json({ 
             ok: false, 
@@ -14,7 +12,6 @@ const registrarUsuario = async (req, res) => {
         });
     }
 
-    // 2. Validación de QA: Formato de correo básico
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(correo)) {
         return res.status(400).json({ 
@@ -23,7 +20,6 @@ const registrarUsuario = async (req, res) => {
         });
     }
 
-    // 3. Validación de QA: Contraseña débil (mínimo 6 caracteres)
     if (contraseña.length < 6) {
         return res.status(400).json({ 
             ok: false, 
@@ -32,38 +28,30 @@ const registrarUsuario = async (req, res) => {
     }
 
     try {
-        // 4. Validar que el correo no esté repetido
-        const existeUsuario = usuariosMock.find(user => user.correo === correo);
-        if (existeUsuario) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Este correo electrónico ya se encuentra registrado.' 
+        const [usuarioExistente] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [correo]);
+        
+        if (usuarioExistente.length > 0) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Este correo electrónico ya se encuentra registrado.'
             });
         }
 
-        // 5. Encriptar la contraseña (Ciberseguridad)
         const salt = await bcrypt.genSalt(10);
         const contraseñaEncriptada = await bcrypt.hash(contraseña, salt);
 
-        // 6. Guardar el nuevo usuario en el mock
-        const nuevoUsuario = {
-            id: usuariosMock.length + 1,
-            nombre,
-            correo,
-            contraseña: contraseñaEncriptada
-        };
-        usuariosMock.push(nuevoUsuario);
+        const [resultado] = await db.query(
+            'INSERT INTO Usuario (Nombre, Correo, Contrasena) VALUES (?, ?, ?)',
+            [nombre, correo, contraseñaEncriptada]
+        );
 
-        console.log('Usuarios en memoria actualizados:', usuariosMock);
-
-        // 7. Respuesta exitosa
         return res.status(201).json({
             ok: true,
-            msg: 'Usuario registrado exitosamente.',
+            msg: 'Usuario registrado exitosamente en MariaDB.',
             usuario: {
-                id: nuevoUsuario.id,
-                nombre: nuevoUsuario.nombre,
-                correo: nuevoUsuario.correo
+                id: resultado.insertId,
+                nombre,
+                correo
             }
         });
 
@@ -71,11 +59,76 @@ const registrarUsuario = async (req, res) => {
         console.error(error);
         return res.status(500).json({ 
             ok: false, 
-            msg: 'Error en el servidor. Contacte al administrador.' 
+            msg: 'Error en el servidor al registrar. Contacte al administrador.' 
         });
     }
 };
 
+// === INICIO DE SESIÓN (LOGIN) ===
+const loginUsuario = async (req, res) => {
+    const { correo, contraseña } = req.body;
+
+    // 1. Validación de QA: Campos vacíos
+    if (!correo || !contraseña) {
+        return res.status(400).json({
+            ok: false,
+            msg: 'Por favor, proporcione correo y contraseña.'
+        });
+    }
+
+    try {
+        // 2. Buscar al usuario en MariaDB por su correo
+        const [usuarios] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [correo]);
+        
+        if (usuarios.length === 0) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Credenciales incorrectas (correo o contraseña no válidos).'
+            });
+        }
+
+        const usuario = usuarios[0];
+
+        // 3. Validación de QA: Verificar si el usuario está activo
+        if (usuario.Estatus_Activo !== 1) {
+            return res.status(403).json({
+                ok: false,
+                msg: 'Tu cuenta está desactivada. Contacta al administrador.'
+            });
+        }
+
+        // 4. Comparar la contraseña ingresada con el Hash encriptado de la BD
+        const contraseñaValida = await bcrypt.compare(contraseña, usuario.Contrasena);
+        
+        if (!contraseñaValida) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Credenciales incorrectas (correo o contraseña no válidos).'
+            });
+        }
+
+        // 5. Respuesta exitosa si todo coincide
+        return res.status(200).json({
+            ok: true,
+            msg: 'Inicio de sesión exitoso.',
+            usuario: {
+                id: usuario.ID_Usuario,
+                nombre: usuario.Nombre,
+                correo: usuario.Correo
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            ok: false,
+            msg: 'Error en el servidor al iniciar sesión.'
+        });
+    }
+};
+
+// Exportamos ambos métodos para que las rutas los usen
 module.exports = {
-    registrarUsuario
+    registrarUsuario,
+    loginUsuario
 };
