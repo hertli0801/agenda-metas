@@ -1,7 +1,5 @@
 const bcrypt = require('bcryptjs');
-
-// Simulación de la base de datos en memoria (temporal)
-const usuariosMock = [];
+const db = require('../config/db'); // Importamos la conexión real a MariaDB
 
 const registrarUsuario = async (req, res) => {
     const { nombre, correo, contraseña } = req.body;
@@ -23,7 +21,7 @@ const registrarUsuario = async (req, res) => {
         });
     }
 
-    // 3. Validación de QA: Contraseña débil (mínimo 6 caracteres)
+    // 3. Validación de QA: Contraseña débil
     if (contraseña.length < 6) {
         return res.status(400).json({ 
             ok: false, 
@@ -32,12 +30,13 @@ const registrarUsuario = async (req, res) => {
     }
 
     try {
-        // 4. Validar que el correo no esté repetido
-        const existeUsuario = usuariosMock.find(user => user.correo === correo);
-        if (existeUsuario) {
-            return res.status(400).json({ 
-                ok: false, 
-                msg: 'Este correo electrónico ya se encuentra registrado.' 
+        // 4. Validar si el correo ya existe en MariaDB
+        const [usuarioExistente] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [correo]);
+        
+        if (usuarioExistente.length > 0) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Este correo electrónico ya se encuentra registrado.'
             });
         }
 
@@ -45,25 +44,21 @@ const registrarUsuario = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const contraseñaEncriptada = await bcrypt.hash(contraseña, salt);
 
-        // 6. Guardar el nuevo usuario en el mock
-        const nuevoUsuario = {
-            id: usuariosMock.length + 1,
-            nombre,
-            correo,
-            contraseña: contraseñaEncriptada
-        };
-        usuariosMock.push(nuevoUsuario);
+        // 6. Insertar el nuevo usuario en MariaDB
+        // Ojo: Usamos "Contrasena" sin la "ñ" tal cual se mapeó en tu script de base de datos
+        const [resultado] = await db.query(
+            'INSERT INTO Usuario (Nombre, Correo, Contrasena) VALUES (?, ?, ?)',
+            [nombre, correo, contraseñaEncriptada]
+        );
 
-        console.log('Usuarios en memoria actualizados:', usuariosMock);
-
-        // 7. Respuesta exitosa
+        // 7. Respuesta exitosa con persistencia real
         return res.status(201).json({
             ok: true,
-            msg: 'Usuario registrado exitosamente.',
+            msg: 'Usuario registrado exitosamente en MariaDB.',
             usuario: {
-                id: nuevoUsuario.id,
-                nombre: nuevoUsuario.nombre,
-                correo: nuevoUsuario.correo
+                id: resultado.insertId,
+                nombre,
+                correo
             }
         });
 
@@ -71,7 +66,7 @@ const registrarUsuario = async (req, res) => {
         console.error(error);
         return res.status(500).json({ 
             ok: false, 
-            msg: 'Error en el servidor. Contacte al administrador.' 
+            msg: 'Error en el servidor al registrar. Contacte al administrador.' 
         });
     }
 };
