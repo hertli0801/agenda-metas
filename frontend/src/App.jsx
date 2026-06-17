@@ -1,71 +1,161 @@
 import React, { useState } from "react";
-import Dashboard from "./pages/Dashboard";
-import NewGoal from "./pages/NewGoal";
+import LoginScreen from "./pages/Login";
+import RegisterScreen from "./pages/RegisterScreen";
+import ForgotPasswordScreen from "./pages/ForgotPasswordScreen";
+import DashboardScreen from "./pages/DashboardScreen";
+import NewGoalScreen from "./pages/NewGoalScreen";
+import ProfileScreen from "./pages/ProfileScreen";
+import GoalDetailScreen from "./pages/GoalDetailScreen";
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState("dashboard");
+  // Manejo de la pantalla actual: 'login', 'register', 'forgot', 'dashboard', 'new-goal', 'profile', 'detail'
+  const [screen, setScreen] = useState("login");
+  const [user, setUser] = useState("");
+  const [selectedGoal, setSelectedGoal] = useState(null);
+
+  // Datos de prueba para evitar que el renderizado falle por valores undefined
   const [goals, setGoals] = useState([
-    { id: 1, title: "Aprender Inglés", progress: 65, category: "Estudio", dueDate: "14/08/2026" },
-    { id: 2, title: "Ahorrar $5000", progress: 40, category: "Finanzas", dueDate: "30/12/2026" }
+    {
+      id: 1,
+      title: "Terminar Frontend de GoalFlow",
+      description: "Maquetar todas las vistas usando React y Tailwind CSS conforme al diseño de Figma.",
+      dueDate: "2026-06-30",
+      category: "Estudio",
+      progress: 75,
+      status: "En progreso"
+    },
+    {
+      id: 2,
+      title: "Ahorrar para la suscripción",
+      description: "Separar dinero mensualmente.",
+      dueDate: "2026-07-15",
+      category: "Finanzas",
+      progress: 100,
+      status: "Completada"
+    }
   ]);
 
-  // HU 06: Estados para controlar la ventana de confirmación
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [goalToDelete, setGoalToDelete] = useState(null);
+  // Cálculos dinámicos de estadísticas
+  const activeGoals = goals.filter(g => g.status !== "Completada").length;
+  const completedGoals = goals.filter(g => g.status === "Completada").length;
+  const totalProgress = goals.reduce((acc, curr) => acc + curr.progress, 0);
+  const avgProgress = goals.length > 0 ? Math.round(totalProgress / goals.length) : 0;
 
-  const handleAddGoal = (newGoal) => {
-    setGoals((prev) => [
-      ...prev,
-      { id: Date.now(), title: newGoal.title, progress: 0, category: newGoal.category, dueDate: newGoal.dueDate }
-    ]);
-    setCurrentScreen("dashboard");
+  const stats = {
+    active: activeGoals,
+    completed: completedGoals,
+    avgProgress: avgProgress
   };
 
-  // Abre el modal guardando la meta seleccionada
-  const triggerDeleteModal = (goal) => {
-    setGoalToDelete(goal);
-    setIsModalOpen(true);
+  // Handlers de autenticación
+  const handleLogin = (userName) => {
+    setUser(userName);
+    setScreen("dashboard");
   };
 
-  // Borra definitivamente la meta de la lista
-  const confirmDeleteGoal = () => {
-    setGoals((prev) => prev.filter((g) => g.id !== goalToDelete.id));
-    setIsModalOpen(false);
-    setGoalToDelete(null);
+  const handleRegister = (userName) => {
+    setUser(userName);
+    setScreen("dashboard");
   };
 
+  const handleLogout = () => {
+    setUser("");
+    setScreen("login");
+  };
+
+  // Handlers de Metas
+  const handleSaveGoal = (newGoalData) => {
+    const newGoal = {
+      id: Date.now(),
+      ...newGoalData,
+      progress: 0,
+      status: "En progreso"
+    };
+    setGoals([...goals, newGoal]);
+    setScreen("dashboard");
+  };
+
+  const handleSelectGoal = (goal) => {
+    setSelectedGoal(goal);
+    setScreen("detail");
+  };
+
+  const handleUpdateProgress = (newProgress) => {
+    setGoals(goals.map(g => g.id === selectedGoal.id ? { ...g, progress: newProgress } : g));
+    setSelectedGoal({ ...selectedGoal, progress: newProgress });
+  };
+
+  const handleCompleteGoal = () => {
+    setGoals(goals.map(g => g.id === selectedGoal.id ? { ...g, progress: 100, status: "Completada" } : g));
+    setScreen("dashboard");
+  };
+
+  const handleDeleteGoal = () => {
+    setGoals(goals.filter(g => g.id !== selectedGoal.id));
+    setScreen("dashboard");
+  };
+
+  // Contenedor simulador de teléfono celular (Centrado y estético)
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center sm:p-4">
-      <div className="w-full max-w-[430px] h-[844px] bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[40px]">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-0 sm:p-4 font-sans selection:bg-indigo-100">
+      <div className="w-full max-w-[412px] h-[844px] bg-white rounded-none sm:rounded-[40px] shadow-2xl overflow-hidden border border-slate-800 flex flex-col relative">
         
-        <div className="flex-grow overflow-y-auto bg-[#f8fafc]">
-          {currentScreen === "dashboard" && (
-            <Dashboard goals={goals} setCurrentScreen={setCurrentScreen} onDeleteGoal={triggerDeleteModal} />
-          )}
-          {currentScreen === "new-goal" && (
-            <NewGoal onSaveGoal={handleAddGoal} onCancel={() => setCurrentScreen("dashboard")} />
-          )}
-        </div>
+        {/* Renderizado Condicional de Pantallas */}
+        {screen === "login" && (
+          <LoginScreen 
+            onLogin={handleLogin} 
+            onNavigateRegister={() => setScreen("register")} 
+            onNavigateForgot={() => setScreen("forgot")} 
+          />
+        )}
 
-        {/* HU 06: INTERFAZ INTERACTIVA DEL MODAL DE CONFIRMACIÓN */}
-        {isModalOpen && (
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-6 z-50">
-            <div className="bg-white rounded-3xl p-6 w-full max-w-[320px] text-center space-y-4 shadow-xl">
-              <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-xl mx-auto">⚠️</div>
-              <div>
-                <h4 className="font-bold text-slate-900 text-base">¿Eliminar meta?</h4>
-                <p className="text-xs text-slate-400 mt-1">¿Estás seguro de que deseas eliminar "{goalToDelete?.title}"? Esta acción no se puede deshacer.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button onClick={() => setIsModalOpen(false)} className="py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">
-                  Cancelar
-                </button>
-                <button onClick={confirmDeleteGoal} className="py-2.5 bg-red-500 text-white text-xs font-bold rounded-xl shadow-md">
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          </div>
+        {screen === "register" && (
+          <RegisterScreen 
+            onRegister={handleRegister} 
+            onNavigateLogin={() => setScreen("login")} 
+          />
+        )}
+
+        {screen === "forgot" && (
+          <ForgotPasswordScreen 
+            onNavigateLogin={() => setScreen("login")} 
+          />
+        )}
+
+        {screen === "dashboard" && (
+          <DashboardScreen 
+            user={user} 
+            goals={goals} 
+            stats={stats} 
+            onSelectGoal={handleSelectGoal} 
+            onNavigate={(target) => setScreen(target)} 
+          />
+        )}
+
+        {screen === "new-goal" && (
+          <NewGoalScreen 
+            onSave={handleSaveGoal} 
+            onCancel={() => setScreen("dashboard")} 
+          />
+        )}
+
+        {screen === "profile" && (
+          <ProfileScreen 
+            user={user} 
+            stats={stats} 
+            onLogout={handleLogout} 
+            onNavigate={(target) => setScreen(target)} 
+          />
+        )}
+
+        {screen === "detail" && selectedGoal && (
+          <GoalDetailScreen 
+            goal={selectedGoal} 
+            onBack={() => setScreen("dashboard")} 
+            onUpdateProgress={handleUpdateProgress} 
+            onTriggerComplete={handleCompleteGoal} 
+            onTriggerDelete={handleDeleteGoal} 
+          />
         )}
 
       </div>
