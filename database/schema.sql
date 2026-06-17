@@ -1,6 +1,7 @@
 CREATE DATABASE IF NOT EXISTS db_agenda_metas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE db_agenda_metas;
 
+-- 1. TABLAS INDEPENDIENTES
 CREATE TABLE Usuario (
     ID_Usuario INT PRIMARY KEY AUTO_INCREMENT,
     Nombre VARCHAR(100) NOT NULL,
@@ -21,11 +22,12 @@ CREATE TABLE Etiqueta (
     Nombre VARCHAR(50) UNIQUE NOT NULL
 );
 
+
 CREATE TABLE Meta (
     ID_Meta INT PRIMARY KEY AUTO_INCREMENT,
     Creador_ID INT NOT NULL,
     Responsable_ID INT NOT NULL,
-    Categoria_ID INT,
+    Categoria_ID INT NOT NULL, -- Corrección: Ahora es estrictamente obligatorio
     Titulo VARCHAR(150) NOT NULL,
     Descripcion TEXT,
     Prioridad ENUM('Baja', 'Media', 'Alta', 'Critica') DEFAULT 'Media',
@@ -35,10 +37,12 @@ CREATE TABLE Meta (
     Fecha_Limite DATE,
     Creado_En TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     Actualizado_En TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (Creador_ID) REFERENCES Usuario(ID_Usuario) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (Responsable_ID) REFERENCES Usuario(ID_Usuario) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (Categoria_ID) REFERENCES Categoria(ID_Categoria) ON DELETE SET NULL ON UPDATE CASCADE
+    FOREIGN KEY (Categoria_ID) REFERENCES Categoria(ID_Categoria) ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
 
 CREATE TABLE Subtarea (
     ID_Subtarea INT PRIMARY KEY AUTO_INCREMENT,
@@ -57,12 +61,13 @@ CREATE TABLE Meta_Etiqueta (
     FOREIGN KEY (Etiqueta_ID) REFERENCES Etiqueta(ID_Etiqueta) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+
 CREATE TABLE Avance (
     ID_Avance INT PRIMARY KEY AUTO_INCREMENT,
     Meta_ID INT NOT NULL,
     Usuario_ID INT NOT NULL,
-    Porcentaje_Reportado INT CHECK (Porcentaje_Reportado >= 0 AND Porcentaje_Reportado <= 100),
-    Comentarios TEXT,
+    Porcentaje_Reportado INT NOT NULL CHECK (Porcentaje_Reportado >= 0 AND Porcentaje_Reportado <= 100), -- Corrección: Obligatorio
+    Comentarios TEXT NOT NULL, -- Corrección: Obligatorio para evitar avances vacíos
     Evidencia_URL VARCHAR(255),
     Fecha_Registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (Meta_ID) REFERENCES Meta(ID_Meta) ON DELETE CASCADE ON UPDATE CASCADE,

@@ -12,6 +12,7 @@ app.use(express.json()); // Permite recibir datos en formato JSON (crucial para 
 
 // --- CONEXIÓN DE RUTAS ---
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/meta', require('./routes/metaRoutes'));
 
 
 // Ruta de prueba inicial
