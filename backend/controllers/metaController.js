@@ -4,8 +4,8 @@ const db = require('../config/db'); // Pool de conexiones a MariaDB
 // HU 08: CREAR UNA NUEVA META
 // ==============================================================================
 const crearMeta = async (req, res) => {
-    // 1. Extraemos los campos del req.body con Mayúsculas (estándar de Cacho)
-    const { Creador_ID, Responsable_ID, Categoria_ID, Titulo, Descripcion, Prioridad, Fecha_Inicio, Fecha_Limite } = req.body;
+    // 1. Extraemos los campos del req.body con 'let' para poder limpiar las fechas
+    let { Creador_ID, Responsable_ID, Categoria_ID, Titulo, Descripcion, Prioridad, Fecha_Inicio, Fecha_Limite } = req.body;
 
     // 2. Validación obligatoria de negocio (Reglas de la BD)
     if (!Creador_ID || !Responsable_ID || !Categoria_ID || !Titulo) {
@@ -15,11 +15,15 @@ const crearMeta = async (req, res) => {
         });
     }
 
+    // ===== LIMPIEZA DE FECHAS PARA EVITAR FORMATO ISO EN LA BD =====
+    if (Fecha_Inicio && Fecha_Inicio.includes('T')) Fecha_Inicio = Fecha_Inicio.split('T')[0];
+    if (Fecha_Limite && Fecha_Limite.includes('T')) Fecha_Limite = Fecha_Limite.split('T')[0];
+    // ==============================================================
+
     try {
         const sql = `INSERT INTO Meta (Creador_ID, Responsable_ID, Categoria_ID, Titulo, Descripcion, Prioridad, Fecha_Inicio, Fecha_Limite) 
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
         
-        // El operador || 'Media' asegura un valor por defecto si no mandan prioridad
         const [result] = await db.query(sql, [Creador_ID, Responsable_ID, Categoria_ID, Titulo, Descripcion, Prioridad || 'Media', Fecha_Inicio, Fecha_Limite]);
 
         res.status(201).json({
@@ -40,16 +44,21 @@ const crearMeta = async (req, res) => {
 // HU 08: EDITAR META (Campos generales)
 // ==============================================================================
 const actualizarMeta = async (req, res) => {
-    const { id } = req.params; // ID de la meta que viene en la URL
-    const { Categoria_ID, Titulo, Descripcion, Prioridad, Fecha_Limite } = req.body;
+    const { id } = req.params; 
+    let { Categoria_ID, Titulo, Descripcion, Prioridad, Fecha_Limite } = req.body;
 
-    // Validación mínima para no romper la consistencia
     if (!Categoria_ID || !Titulo) {
         return res.status(400).json({
             ok: false,
             msg: 'La categoría y el título son estrictamente obligatorios para actualizar.'
         });
     }
+
+    // ===== LIMPIEZA DE FECHA_LIMITE PARA EVITAR FORMATO ISO EN LA BD =====
+    if (Fecha_Limite && Fecha_Limite.includes('T')) {
+        Fecha_Limite = Fecha_Limite.split('T')[0]; 
+    }
+    // ======================================================================
 
     try {
         const sql = `UPDATE Meta 
@@ -74,9 +83,8 @@ const actualizarMeta = async (req, res) => {
 // ==============================================================================
 const cambiarEstatusMeta = async (req, res) => {
     const { id } = req.params;
-    const { Estatus, Porcentaje_Actual } = req.body; // Ej: Estatus = 'Terminado', Porcentaje = 100
+    const { Estatus, Porcentaje_Actual } = req.body; 
 
-    // Validación preventiva del CHECK de la BD (rango de 0 a 100)
     if (Porcentaje_Actual !== undefined && (Porcentaje_Actual < 0 || Porcentaje_Actual > 100)) {
         return res.status(400).json({ ok: false, msg: 'El porcentaje de avance debe estar entre 0 y 100.' });
     }
@@ -106,8 +114,6 @@ const eliminarMeta = async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Nota de arquitectura: Al borrar, el ON DELETE CASCADE de la BD
-        // limpiará automáticamente las subtareas o pivotes vinculados a este ID.
         const [result] = await db.query('DELETE FROM Meta WHERE ID_Meta = ?', [id]);
 
         if (result.affectedRows === 0) {
@@ -125,7 +131,7 @@ const eliminarMeta = async (req, res) => {
 // HU 10: CALCULAR PORCENTAJE DE AVANCE GENERAL (DASHBOARD)
 // ==============================================================================
 const obtenerProgresoGeneral = async (req, res) => {
-    const { usuarioId } = req.params; // Filtramos por el ID del usuario logueado
+    const { usuarioId } = req.params; 
 
     try {
         // 1. Obtener la cantidad total de metas que tiene asignadas el usuario
