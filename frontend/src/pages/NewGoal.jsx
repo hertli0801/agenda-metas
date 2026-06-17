@@ -3,7 +3,9 @@ import React from 'react';
 
 function NewGoal() {
   return (
-    // ... todo el código del div que tenías antes ...
+    <div className="p-4 text-slate-800">
+      <h2>Módulo de Creación de Metas (Próximamente)</h2>
+    </div>
   );
 }
 
