@@ -3,24 +3,25 @@ const db = require('../config/db'); // Conexión a MariaDB
 
 // === REGISTRO DE USUARIO ===
 const registrarUsuario = async (req, res) => {
-    const { nombre, correo, contraseña } = req.body;
+   
+    const { Nombre, Correo, Contrasena } = req.body;
 
-    if (!nombre || !correo || !contraseña) {
+    if (!Nombre || !Correo || !Contrasena) {
         return res.status(400).json({ 
             ok: false, 
-            msg: 'Todos los campos (nombre, correo, contraseña) son obligatorios.' 
+            msg: 'Todos los campos (Nombre, Correo, Contrasena) son obligatorios.' 
         });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(correo)) {
+    if (!emailRegex.test(Correo)) {
         return res.status(400).json({ 
             ok: false, 
             msg: 'El formato del correo electrónico no es válido.' 
         });
     }
 
-    if (contraseña.length < 6) {
+    if (Contrasena.length < 6) {
         return res.status(400).json({ 
             ok: false, 
             msg: 'La contraseña debe tener al menos 6 caracteres.' 
@@ -28,7 +29,8 @@ const registrarUsuario = async (req, res) => {
     }
 
     try {
-        const [usuarioExistente] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [correo]);
+        // Buscamos usando la columna correcta 'Correo'
+        const [usuarioExistente] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [Correo]);
         
         if (usuarioExistente.length > 0) {
             return res.status(400).json({
@@ -38,11 +40,12 @@ const registrarUsuario = async (req, res) => {
         }
 
         const salt = await bcrypt.genSalt(10);
-        const contraseñaEncriptada = await bcrypt.hash(contraseña, salt);
+        const contraseñaEncriptada = await bcrypt.hash(Contrasena, salt);
 
+        // Insertamos usando las variables corregidas
         const [resultado] = await db.query(
             'INSERT INTO Usuario (Nombre, Correo, Contrasena) VALUES (?, ?, ?)',
-            [nombre, correo, contraseñaEncriptada]
+            [Nombre, Correo, contraseñaEncriptada]
         );
 
         return res.status(201).json({
@@ -50,8 +53,8 @@ const registrarUsuario = async (req, res) => {
             msg: 'Usuario registrado exitosamente en MariaDB.',
             usuario: {
                 id: resultado.insertId,
-                nombre,
-                correo
+                nombre: Nombre,
+                correo: Correo
             }
         });
 
@@ -66,19 +69,20 @@ const registrarUsuario = async (req, res) => {
 
 // === INICIO DE SESIÓN (LOGIN) ===
 const loginUsuario = async (req, res) => {
-    const { correo, contraseña } = req.body;
+    
+    const { Correo, Contrasena } = req.body;
 
     // 1. Validación de QA: Campos vacíos
-    if (!correo || !contraseña) {
+    if (!Correo || !Contrasena) {
         return res.status(400).json({
             ok: false,
-            msg: 'Por favor, proporcione correo y contraseña.'
+            msg: 'Por favor, proporcione Correo y Contrasena.'
         });
     }
 
     try {
         // 2. Buscar al usuario en MariaDB por su correo
-        const [usuarios] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [correo]);
+        const [usuarios] = await db.query('SELECT * FROM Usuario WHERE Correo = ?', [Correo]);
         
         if (usuarios.length === 0) {
             return res.status(400).json({
@@ -98,7 +102,7 @@ const loginUsuario = async (req, res) => {
         }
 
         // 4. Comparar la contraseña ingresada con el Hash encriptado de la BD
-        const contraseñaValida = await bcrypt.compare(contraseña, usuario.Contrasena);
+        const contraseñaValida = await bcrypt.compare(Contrasena, usuario.Contrasena);
         
         if (!contraseñaValida) {
             return res.status(400).json({
