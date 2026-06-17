@@ -6,98 +6,110 @@ import DashboardScreen from "./pages/DashboardScreen";
 import NewGoalScreen from "./pages/NewGoalScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import GoalDetailScreen from "./pages/GoalDetailScreen";
+import { goalsService } from "./api"; // Conexión a la base de datos
 
 export default function App() {
-  // Control de navegación del simulador
   const [screen, setScreen] = useState("login");
   const [user, setUser] = useState("");
   const [selectedGoal, setSelectedGoal] = useState(null);
-
-  // El estado de metas inicia vacío esperando a MariaDB
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 🛠️ FUNCIÓN CORREGIDA: Sincronización exacta con las columnas de tu MariaDB
- const cargarMetasDesdeBD = async () => {
+  const cargarMetasDesdeBD = async () => {
     const idUsuarioLogueado = localStorage.getItem("usuarioId");
-    
-    if (!idUsuarioLogueado) {
-      console.warn("⚠️ QA Log: No se encontró 'usuarioId' en el localStorage.");
-      return;
-    }
+    if (!idUsuarioLogueado) return;
 
     try {
       setLoading(true);
-      console.log(`🔍 Petición GET enviada para usuario ID: ${idUsuarioLogueado}`);
-      
-      const respuesta = await fetch("http://localhost:3000/api/meta");
-      const datos = await respuesta.json();
-  
-      // 🌟 ESTE LOG ES CRÍTICO: Nos dirá exactamente cómo vienen estructurados tus datos
-      console.log("📦 DATOS CRUDOS QUE LLEGAN DEL BACKEND:", datos);
-  
-      // Si llega un arreglo directo
-      let listaMetas = Array.isArray(datos) ? datos : [];
-      
-      // Si los datos vienen dentro de una propiedad (ej: datos.metas o datos.data)
-      if (!Array.isArray(datos) && datos && typeof datos === 'object') {
-        listaMetas = datos.metas || datos.data || Object.values(datos).find(Array.isArray) || [];
-      }
-
-      console.log("📋 Lista extraída para filtrar:", listaMetas);
+      const datos = await goalsService.getAll();
+      let listaMetas = Array.isArray(datos) ? datos : (datos.metas || []);
 
       const metasMapeadas = listaMetas
-        .filter(m => {
-          // Log para comprobar si coinciden los IDs
-          const coincide = parseInt(m.Creador_ID) === parseInt(idUsuarioLogueado);
-          console.log(`Checking meta ID_Meta: ${m.ID_Meta}, Creador_ID en BD: ${m.Creador_ID}, Buscado: ${idUsuarioLogueado} -> ¿Coincide?: ${coincide}`);
-          return coincide;
-        })
+        .filter(m => parseInt(m.Creador_ID) === parseInt(idUsuarioLogueado))
         .map((m) => ({
           id: m.ID_Meta,
           title: m.Titulo,
-          description: m.Descripcion || "Sin descripción asignada.",
+          description: m.Descripcion || "",
           dueDate: m.Fecha_Limite,
-          category: m.Categoria_ID === 1 ? "General" : m.Categoria_ID === 4 ? "Personal" : "Estudio", 
           progress: m.Porcentaje_Actual || 0, 
-          status: m.Estatus || "En progreso" 
+          status: m.Estatus || "En progreso",
+          category: m.Categoria_ID === 1 ? "General" : m.Categoria_ID === 4 ? "Personal" : m.Categoria_ID === 3 ? "Salud" : "Estudio"
         }));
-      
-      console.log("✨ Metas finales inyectadas al estado:", metasMapeadas);
       setGoals(metasMapeadas);
     } catch (error) {
-      console.error("❌ Error de red al conectar el GET:", error);
+      console.error("Error al cargar metas:", error);
     } finally {
       setLoading(false);
     }
   };
-  // Cargar metas automáticamente al entrar al Dashboard
+
   useEffect(() => {
-    if (screen === "dashboard") {
-      cargarMetasDesdeBD();
-    }
+    if (screen === "dashboard") cargarMetasDesdeBD();
   }, [screen]);
 
-  // Cálculos reactivos de estadísticas globales basándose en las columnas mapeadas
-  const activeGoals = goals.filter(g => g.status !== "Completada" && g.status !== "Terminado").length;
-  const completedGoals = goals.filter(g => g.status === "Completada" || g.status === "Terminado").length;
-  const totalProgress = goals.reduce((acc, curr) => acc + curr.progress, 0);
-  const avgProgress = goals.length > 0 ? Math.round(totalProgress / goals.length) : 0;
-
   const stats = {
-    active: activeGoals,
-    completed: completedGoals,
-    avgProgress: avgProgress
+    active: goals.filter(g => g.status !== "Terminado").length,
+    completed: goals.filter(g => g.status === "Terminado").length,
+    avgProgress: goals.length > 0 ? Math.round(goals.reduce((acc, curr) => acc + curr.progress, 0) / goals.length) : 0
   };
 
-  // Handlers de autenticación
-  const handleLogin = (userName) => {
-    setUser(userName);
+  const handleUpdateProgress = async (newProgress) => {
+    if (!selectedGoal) return;
+    const idMeta = selectedGoal.id;
+    const nuevoEstatus = newProgress === 100 ? "Terminado" : "En progreso";
+
+    setGoals(prev => prev.map(g => g.id === idMeta ? { ...g, progress: newProgress, status: nuevoEstatus } : g));
+    setSelectedGoal(prev => ({ ...prev, progress: newProgress, status: nuevoEstatus }));
+
+    try {
+      await goalsService.updateEstatus(idMeta, nuevoEstatus, newProgress);
+    } catch (error) {
+      console.error("Error al persistir:", error);
+      cargarMetasDesdeBD();
+    }
+  };
+
+  const handleCompleteGoal = async () => {
+    if (!selectedGoal) return;
+    
+    // Extraemos el ID sin importar cómo venga estructurado
+    const idMeta = selectedGoal.id || selectedGoal.ID_Meta;
+
+    // 1. ACTUALIZACIÓN INMEDIATA (La UI responde al instante)
+    setGoals(prev => prev.map(g => 
+      (g.id === idMeta || g.ID_Meta === idMeta) 
+        ? { ...g, progress: 100, status: "Terminado" } 
+        : g
+    ));
+    
+    // 2. Te saca de ahí y te manda al dashboard inmediatamente
     setScreen("dashboard");
+
+    // 3. Trabaja en segundo plano con la base de datos
+    try {
+      console.log(`🎯 Enviando petición para completar meta: ${idMeta}`);
+      await goalsService.updateEstatus(idMeta, "Terminado", 100);
+      
+      // Sincroniza los datos limpios por debajo del agua
+      cargarMetasDesdeBD();
+    } catch (error) {
+      console.error("❌ Error de red al intentar completar la meta en el servidor:", error);
+    }
+  };
+  const handleDeleteGoal = async () => {
+    if (!selectedGoal) return;
+    try {
+      await goalsService.delete(selectedGoal.id);
+      await cargarMetasDesdeBD();
+      setScreen("dashboard");
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+    }
   };
 
-  const handleRegister = (userName) => {
-    setUser(userName);
+  // 🔥 ESTAS FUNCIONES FALTABAN POR MI ERROR DE CORTE 🔥
+  const handleSaveGoal = () => {
+    cargarMetasDesdeBD();
     setScreen("dashboard");
   };
 
@@ -108,44 +120,14 @@ export default function App() {
     setScreen("login");
   };
 
-  // Handler de persistencia al guardar una nueva meta
-  const handleSaveGoal = () => {
-    cargarMetasDesdeBD();
-    setScreen("dashboard");
-  };
-
-  const handleSelectGoal = (goal) => {
-    setSelectedGoal(goal);
-    setScreen("detail");
-  };
-
-  const handleUpdateProgress = (newProgress) => {
-    setGoals(goals.map(g => g.id === selectedGoal.id ? { ...g, progress: newProgress } : g));
-    setSelectedGoal({ ...selectedGoal, progress: newProgress });
-  };
-
-  const handleCompleteGoal = () => {
-    cargarMetasDesdeBD();
-    setScreen("dashboard");
-  };
-
-  const handleDeleteGoal = () => {
-    cargarMetasDesdeBD();
-    setScreen("dashboard");
-  };
-
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-0 sm:p-4 font-sans selection:bg-indigo-100">
-      <div className="w-full max-w-[412px] h-[844px] bg-white rounded-none sm:rounded-[40px] shadow-2xl overflow-hidden border border-slate-800 flex flex-col relative">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-[412px] h-[844px] bg-white rounded-[40px] shadow-2xl overflow-hidden relative">
+        {loading && <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500 animate-pulse z-50" />}
         
-        {loading && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500 animate-pulse z-50" />
-        )}
-
-        {/* Renderizado Condicional de Pantallas */}
         {screen === "login" && (
           <LoginScreen 
-            onLogin={handleLogin} 
+            onLogin={(u) => { setUser(u); setScreen("dashboard"); }} 
             onNavigateRegister={() => setScreen("register")} 
             onNavigateForgot={() => setScreen("forgot")} 
           />
@@ -153,7 +135,7 @@ export default function App() {
 
         {screen === "register" && (
           <RegisterScreen 
-            onRegister={handleRegister} 
+            onRegister={(u) => { setUser(u); setScreen("dashboard"); }} 
             onNavigateLogin={() => setScreen("login")} 
           />
         )}
@@ -166,14 +148,15 @@ export default function App() {
 
         {screen === "dashboard" && (
           <DashboardScreen 
-            user={user}
+            user={user} 
             goals={goals} 
-            stats={stats}
-            onSelectGoal={handleSelectGoal} 
-            onNavigate={(target) => setScreen(target)} 
+            stats={stats} 
+            onSelectGoal={(g) => { setSelectedGoal(g); setScreen("detail"); }} 
+            onNavigate={setScreen} 
           />
         )}
 
+        {/* 🔥 AQUÍ ESTÁ DE REGRESO LA PANTALLA DE NUEVA META 🔥 */}
         {screen === "new-goal" && (
           <NewGoalScreen 
             onSave={handleSaveGoal} 
@@ -186,7 +169,7 @@ export default function App() {
             user={user} 
             stats={stats} 
             onLogout={handleLogout} 
-            onNavigate={(target) => setScreen(target)} 
+            onNavigate={setScreen} 
           />
         )}
 
@@ -199,7 +182,6 @@ export default function App() {
             onTriggerDelete={handleDeleteGoal} 
           />
         )}
-
       </div>
     </div>
   );
