@@ -17,6 +17,13 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
     "General": 1 // Respaldo por si viene de tu registro base
   };
 
+  // Función interna auxiliar para obtener la fecha limpia YYYY-MM-DD sin ISO (evita errores en MariaDB)
+  const obtenerFechaLimpiaBD = () => {
+    const rawDate = goal?.Fecha_Limite || goal?.dueDate;
+    if (!rawDate) return "2026-06-30";
+    return rawDate.includes("T") ? rawDate.split("T")[0] : rawDate;
+  };
+
   const handleUpdateMeta = async () => {
     setErrorMsg("");
     
@@ -26,7 +33,6 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
     }
 
     // 🕵️‍♀️ EXTRACCIÓN BLINDADA DEL ID DE LA META (QA)
-    // Busca todas las variantes posibles de nombres de columnas en Front y Back
     const idMeta = goal?.ID_Meta || goal?.id || (goal && typeof goal === 'object' ? Object.values(goal)[0] : null);
     
     if (!idMeta || idMeta === "undefined") {
@@ -46,11 +52,11 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          Categoria_ID: categoriaIdMap[goal.category || goal.Categoria_Nombre] || 1, // Valida contra tu FK_Categoria
+          Categoria_ID: categoriaIdMap[goal.category || goal.Categoria_Nombre] || 1, 
           Titulo: editTitle,
           Descripcion: editDescription,
           Prioridad: goal.Prioridad || goal.priority || "Media",
-          Fecha_Limite: goal.Fecha_Limite || goal.dueDate || "2026-06-30" // Mantiene consistencia de fechas
+          Fecha_Limite: obtenerFechaLimpiaBD() // Envia estrictamente YYYY-MM-DD al backend
         }),
       });
 
@@ -59,13 +65,17 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
       if (respuesta.ok) {
         console.log("¡Meta actualizada con éxito en MariaDB!", datos);
         
-        // Sincronizamos las propiedades del objeto en caliente para actualizar el Front reactivamente
+        // Sincronizamos las propiedades en caliente
         if (goal.title !== undefined) goal.title = editTitle;
         if (goal.Titulo !== undefined) goal.Titulo = editTitle;
         
         if (goal.description !== undefined) goal.description = editDescription;
         if (goal.Descripcion !== undefined) goal.Descripcion = editDescription;
         
+        // Actualizamos la propiedad local para que no conserve el formato viejo
+        if (goal.Fecha_Limite) goal.Fecha_Limite = obtenerFechaLimpiaBD();
+        if (goal.dueDate) goal.dueDate = obtenerFechaLimpiaBD();
+
         // Apagamos el formulario de edición
         setIsEditing(false);
       } else {
@@ -94,12 +104,10 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
           </button>
           
           <div className="flex items-center gap-2">
-            {/* Botón de alternancia de Modo Edición */}
             <button 
               onClick={() => {
                 setIsEditing(!isEditing);
                 setErrorMsg("");
-                // Reiniciamos los campos al valor actual por si cancelan la edición
                 setEditTitle(goal?.title || goal?.Titulo || "");
                 setEditDescription(goal?.description || goal?.Descripcion || "");
               }}
@@ -181,7 +189,10 @@ export default function GoalDetailScreen({ goal, onBack, onUpdateProgress, onTri
                 <div>
                   <span className="text-slate-400 block font-bold">Fecha límite</span>
                   <span className="font-extrabold text-slate-700 mt-0.5 block">
-                    {goal.dueDate || goal.Fecha_Limite ? (goal.dueDate || goal.Fecha_Limite).split("-").reverse().join("/") : "Sin fecha"}
+                    {/* Renderizado sanitizado de fecha */}
+                    {goal.dueDate || goal.Fecha_Limite 
+                      ? obtenerFechaLimpiaBD().split("-").reverse().join("/") 
+                      : "Sin fecha"}
                   </span>
                 </div>
                 <div>
