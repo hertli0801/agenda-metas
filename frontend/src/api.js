@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// ⚠️ Pon aquí el puerto exacto donde corre tu servidor Node.js/Express (ej: 5000, 3000)
 const API_URL = 'http://localhost:3000/api'; 
 
 const api = axios.create({
@@ -11,24 +10,27 @@ const api = axios.create({
 });
 
 export const goalsService = {
-  // Obtener todas las metas
   getAll: async () => {
-    const response = await api.get('/metas'); 
+    const response = await api.get('/meta'); 
     return response.data;
   },
-  // Crear una nueva meta
   create: async (goalData) => {
-    const response = await api.post('/metas', goalData);
+    const response = await api.post('/meta', goalData);
     return response.data;
   },
-  // Actualizar el progreso
   update: async (id, goalData) => {
-    const response = await api.put(`/metas/${id}`, goalData);
+    const response = await api.put(`/meta/${id}`, goalData);
     return response.data;
   },
-  // Eliminar una meta
+  updateEstatus: async (id, estatus, porcentaje) => {
+    const response = await api.put(`/meta/estatus/${id}`, {
+      Estatus: estatus,
+      Porcentaje_Actual: porcentaje
+    });
+    return response.data;
+  },
   delete: async (id) => {
-    const response = await api.delete(`/metas/${id}`);
+    const response = await api.delete(`/meta/${id}`);
     return response.data;
   }
 };
