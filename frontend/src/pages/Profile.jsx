@@ -1,7 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react'; // <-- CORREGIDO: Importamos los hooks
 import Navbar from '../components/Navbar';
 
 export default function Profile({ activeGoalsCount, onAddClick, onLogout }) {
+  
+  // 1. Estados locales para almacenar los datos del usuario real
+  const [nombreUsuario, setNombreUsuario] = useState('Usuario');
+  const [correoUsuario, setCorreoUsuario] = useState('correo@ejemplo.com');
+
+  // 2. useEffect para cargar los datos del LocalStorage en cuanto la pantalla aparezca
+  useEffect(() => {
+    const nombreGuardado = localStorage.getItem('usuarioNombre');
+    // Si en el login guardas el correo (ej: datos.usuario.Correo), lo jalarías así:
+    const correoGuardado = localStorage.getItem('usuarioCorreo'); 
+
+    if (nombreGuardado) setNombreUsuario(nombreGuardado);
+    if (correoGuardado) setCorreoUsuario(correoGuardado);
+  }, []);
+  
   return (
     <div className="flex flex-col h-full bg-[#f8fafc] justify-between relative pb-16">
       
@@ -18,8 +33,9 @@ export default function Profile({ activeGoalsCount, onAddClick, onLogout }) {
           <div className="w-20 h-20 bg-indigo-50 border-2 border-slate-200 rounded-full flex items-center justify-center shadow-inner relative mb-3">
             <span className="text-4xl">👤</span>
           </div>
-          <h3 className="text-lg font-bold text-slate-800 leading-tight">Fernanda Abascal</h3>
-          <p className="text-xs text-slate-400">user@gmail.com</p>
+          {/* CORREGIDO: Ahora sí usamos las variables dinámicas en el HTML */}
+          <h3 className="text-lg font-bold text-slate-800 leading-tight">{nombreUsuario}</h3>
+          <p className="text-xs text-slate-400">{correoUsuario}</p>
         </div>
 
         {/* Sección de Estadísticas */}
