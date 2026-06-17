@@ -98,7 +98,13 @@ export default function DashboardScreen({ goals, onSelectGoal, onNavigate }) {
                   <div>
                     <h4 className="font-extrabold text-slate-900 text-base">{goal.title}</h4>
                     <p className="text-xs text-slate-400 font-medium">
-                      Fecha límite: {goal.dueDate ? goal.dueDate.split("-").reverse().join("/") : ""}
+                      Fecha límite: {
+                        goal.dueDate 
+                          ? goal.dueDate.includes("T") 
+                            ? goal.dueDate.split("T")[0].split("-").reverse().join("/") 
+                            : goal.dueDate.split("-").reverse().join("/")
+                          : ""
+                      }
                     </p>
                   </div>
                   <span className="bg-slate-50 text-slate-500 text-[10px] font-bold px-2.5 py-1 rounded-xl">{goal.category}</span>
